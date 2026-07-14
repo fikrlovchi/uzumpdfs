@@ -4,7 +4,6 @@
 
 # 🔐 Maxfiy kalitlar — GitHubga YUKLANMAYDI
 credentials.json
-bubbly-anvil-451415-b6-4ead68b4423a.json
 *service-account*.json
 *.pem
 .env

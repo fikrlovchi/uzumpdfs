@@ -1,7 +1,7 @@
 import { google } from "googleapis";
 
 const auth = new google.auth.GoogleAuth({
-    keyFile: process.env.GOOGLE_KEY_FILE || "bubbly-anvil-451415-b6-4ead68b4423a.json",
+    keyFile: process.env.GOOGLE_KEY_FILE || "credentials.json",
     scopes: [
         "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/spreadsheets"

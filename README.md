@@ -12,10 +12,10 @@ Google service-account kaliti git'ga kirmaydi (`.gitignore`da). Serverda loyiha
 papkasida shu fayl bo'lishi shart:
 
 ```
-bubbly-anvil-451415-b6-4ead68b4423a.json
+credentials.json
 ```
 
-Yoki boshqa nom bilan qo'yib, yo'lini env orqali bering:
+Yoki boshqa nom/yo'l bilan qo'yib, uni env orqali bering:
 
 ```bash
 export GOOGLE_KEY_FILE=/absolute/path/to/key.json
