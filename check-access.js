@@ -1,9 +1,6 @@
-// Diagnostika: service-account POST body'dagi Sheet va papkalarga kira oladimi?
+// Diagnostika: OAuth akkaunt POST body'dagi Sheet va papkalarga kira oladimi?
 // Ishga tushirish (serverda):  node check-access.js
-import fs from "fs";
 import { drive, sheets } from "./google.js";
-
-const KEY = process.env.GOOGLE_KEY_FILE || "credentials.json";
 
 // Serverdagi natija sheet (main.js dagi RESULT_SHEET_ID bilan bir xil)
 const RESULT_SHEET_ID = "18j8NDVJl9ZD-wuwlP3T1A1-sVoJlW_doFrwQrf-AvsE";
@@ -41,11 +38,11 @@ async function checkFolder(id) {
 
 async function main() {
     try {
-        const creds = JSON.parse(fs.readFileSync(KEY, "utf8"));
-        console.log("Service account email:", creds.client_email);
-        console.log("(shu email'ga quyidagilar Editor qilib ulashilishi kerak)\n");
+        const about = await drive.about.get({ fields: "user" });
+        console.log("OAuth akkaunt:", about.data.user.emailAddress);
+        console.log("(fayllar shu akkauntga tegishli bo'ladi)\n");
     } catch (e) {
-        console.log("Kalit faylni o'qib bo'lmadi:", KEY, "-", e.message, "\n");
+        console.log("OAuth tekshiruvi xatosi:", e.message, "\n");
     }
 
     console.log("Natija Sheet 18j8... [uzum_generated]:");
