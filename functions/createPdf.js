@@ -212,6 +212,7 @@ async function uploadToDrive(buffer, fileName, folderId, drive) {
             mimeType: "application/pdf",
             body: fs.createReadStream(tempPath),
         },
+        supportsAllDrives: true,
     });
 
     const fileId = res.data.id;
@@ -219,6 +220,7 @@ async function uploadToDrive(buffer, fileName, folderId, drive) {
     await drive.permissions.create({
         fileId,
         requestBody: { role: "reader", type: "anyone" },
+        supportsAllDrives: true,
     });
 
     return `https://drive.google.com/file/d/${fileId}/view`;

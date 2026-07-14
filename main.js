@@ -165,7 +165,7 @@ app.post("/merge-drive-pdfs", async (req, res) => {
 
         for (const fileId of fileIds) {
             const file = await drive.files.get(
-                { fileId, alt: "media" },
+                { fileId, alt: "media", supportsAllDrives: true },
                 { responseType: "arraybuffer" }
             );
             pdfBuffers.push(Buffer.from(file.data));
@@ -193,6 +193,7 @@ app.post("/merge-drive-pdfs", async (req, res) => {
                 mimeType: "application/pdf",
                 body: fs.createReadStream(tempPath),
             },
+            supportsAllDrives: true,
         });
 
         const newFileId = uploaded.data.id;
@@ -200,6 +201,7 @@ app.post("/merge-drive-pdfs", async (req, res) => {
         await drive.permissions.create({
             fileId: newFileId,
             requestBody: { role: "reader", type: "anyone" },
+            supportsAllDrives: true,
         });
 
         const url = `https://drive.google.com/file/d/${newFileId}/view`;
