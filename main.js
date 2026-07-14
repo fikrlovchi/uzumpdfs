@@ -22,6 +22,9 @@ const RESULT_SHEET_ID = "18j8NDVJl9ZD-wuwlP3T1A1-sVoJlW_doFrwQrf-AvsE";
 const GENERATE_RESULT_TAB = "uzum_generated";
 const MERGE_RESULT_TAB = "uzum_merged";
 
+// Generate PDF'lar saqlanadigan Drive papka (AppSheet yubormasa shu ishlatiladi)
+const GENERATE_TARGET_FOLDER_ID = "1sMssmy_ukXoo9ARSzguZUCjGjfYVVz8s";
+
 const MERGE_PASSWORD = "5e59a31e-e0d6-436a-8df2-174b6fe9fa24";
 
 /* ---------------- HELPERS (GAS'dan ko'chirildi) ---------------- */
@@ -70,7 +73,8 @@ async function appendResult(spreadsheetId, tabName, id, url) {
 app.post("/generate-product-pdfs", async (req, res) => {
     try {
         const data = req.body || {};
-        const { id, TargetFolderId } = data;
+        const { id } = data;
+        const TargetFolderId = data.TargetFolderId || GENERATE_TARGET_FOLDER_ID;
 
         if (!id) {
             return res.status(400).json({ status: "error", message: "ID missing" });

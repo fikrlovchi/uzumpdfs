@@ -8,8 +8,8 @@ const KEY = process.env.GOOGLE_KEY_FILE || "credentials.json";
 // Serverdagi natija sheet (main.js dagi RESULT_SHEET_ID bilan bir xil)
 const RESULT_SHEET_ID = "18j8NDVJl9ZD-wuwlP3T1A1-sVoJlW_doFrwQrf-AvsE";
 
-// POST body'dagi Drive papkalari
-const GENERATE_FOLDER = "1y_O00afxF5HcdzRCpVfjfgq6_h77N_Ji";
+// Drive papkalari (main.js dagi qiymatlar bilan bir xil)
+const GENERATE_FOLDER = "1sMssmy_ukXoo9ARSzguZUCjGjfYVVz8s";
 const MERGE_FOLDER = "1mIg5g1r2mxYzzz7coZ-QSnD50as00prT";
 
 const mark = ok => (ok ? "✅ OK" : "❌ RUXSAT YO'Q");
