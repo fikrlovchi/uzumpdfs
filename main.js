@@ -2,7 +2,7 @@ import express from "express";
 import { PDFDocument, } from "pdf-lib";
 import fs from "fs";
 import path from "path";
-import { createProductPdf, mergePdfs, uploadToDrive } from './functions/createPdf.js'
+import { createProductsPdf, uploadToDrive } from './functions/createPdf.js'
 import { drive, sheets } from "./google.js";
 
 const app = express();
@@ -112,16 +112,10 @@ app.post("/generate-product-pdfs", async (req, res) => {
             qrPosition: { x: 90, y: 40 }
         };
 
-        const pdfBuffers = [];
-        for (const p of products) {
-            const pdfBytes = await createProductPdf(p, pdfConfig);
-            pdfBuffers.push(Buffer.from(pdfBytes));
-        }
-
-        const mergedPdf = await mergePdfs(pdfBuffers);
+        const mergedPdf = await createProductsPdf(products, pdfConfig);
 
         const fileName = `products_${Date.now()}.pdf`;
-        const url = await uploadToDrive(mergedPdf, fileName, TargetFolderId, drive);
+        const url = await uploadToDrive(Buffer.from(mergedPdf), fileName, TargetFolderId, drive);
 
         /* --------- NATIJA SHEETGA [id, url] --------- */
         await appendResult(RESULT_SHEET_ID, GENERATE_RESULT_TAB, id, url);
