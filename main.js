@@ -432,6 +432,24 @@ app.post("/process", requireAuth, (req, res) => {
     })();
 });
 
+// Konstruktor uchun jonli preview: bitta namuna mahsulotdan 1 betlik PDF
+app.post("/preview", requireAuth, async (req, res) => {
+    try {
+        const pdfConfig = req.body.pdfConfig || DEFAULT_PDF_CONFIG;
+        const sample = req.body.sample || {
+            title: "MT2-ELEGANT,SS: Namuna mahsulot nomi (uzunroq)",
+            barcode: "1000088729458,108424143",
+        };
+        const pdfBytes = await createProductsPdf([sample], pdfConfig);
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Cache-Control", "no-store");
+        return res.send(Buffer.from(pdfBytes));
+    } catch (err) {
+        console.error("[preview]", err.message);
+        return res.status(500).json({ status: "error", message: err.message });
+    }
+});
+
 // batch holatini tekshirish (dashboard poll qiladi)
 app.get("/batch/:id", requireAuth, (req, res) => {
     const b = batches.get(req.params.id);

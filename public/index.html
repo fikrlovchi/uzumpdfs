@@ -75,6 +75,10 @@
           <div><label>Barcode X <span class="muted">(ixt.)</span></label><input type="number" id="bx" placeholder="auto"></div>
           <div><label>Barcode Y <span class="muted">(ixt.)</span></label><input type="number" id="by" placeholder="auto"></div>
         </div>
+        <div style="margin-top:14px;">
+          <label>Preview (namuna yorliq) <span class="count" id="previewStatus"></span></label>
+          <iframe id="previewFrame" style="height:380px;"></iframe>
+        </div>
       </details>
 
       <button class="run" id="runBtn" onclick="process()">Ishga tushirish (ShK + BIG)</button>
@@ -174,6 +178,30 @@
         : '<tr><td colspan="4" class="muted">Hali tarix yo\'q</td></tr>';
     }catch(e){ $('histBody').innerHTML='<tr><td colspan="4" class="bad">Tarix yuklanmadi</td></tr>'; }
   }
+  // ---- Konstruktor jonli preview ----
+  let previewUrl = null, previewTimer = null;
+  async function doPreview(){
+    const st = $('previewStatus'); st.textContent = ' — yangilanmoqda...';
+    try{
+      const r = await fetch('/preview', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ pdfConfig: buildConfig() }) });
+      if(r.status===401){ location.href='/login'; return; }
+      if(!r.ok){ const j = await r.json().catch(()=>({})); throw new Error(j.message||('HTTP '+r.status)); }
+      const blob = await r.blob();
+      if(previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = URL.createObjectURL(blob);
+      $('previewFrame').src = previewUrl;
+      st.textContent = '';
+    }catch(e){ st.textContent = ' — xato: '+e.message; }
+  }
+  const schedulePreview = () => { clearTimeout(previewTimer); previewTimer = setTimeout(doPreview, 400); };
+  ['pw','ph','ori','qr','qx','qy','tt','tb','tx','ty','bx','by'].forEach(id=>{
+    $(id).addEventListener('input', schedulePreview);
+    $(id).addEventListener('change', schedulePreview);
+  });
+  // konstruktor birinchi ochilganda preview yuklanadi
+  document.querySelector('details').addEventListener('toggle', e => { if(e.target.open && !previewUrl) doPreview(); });
+
   loadHistory();
 </script>
 </body>
