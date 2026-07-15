@@ -1,15 +1,19 @@
 // Google Sheets'dan bevosita o'qib, AppSheet virtual ustunlarini server ichida
 // qayta hisoblaydi. AppSheet'siz ishlaydi.
 import { sheets } from "../google.js";
+import { withRetry } from "./retry.js";
 
 // Manba spreadsheet (barcha tab'lar shu faylda)
 const SOURCE_SHEET_ID = "18j8NDVJl9ZD-wuwlP3T1A1-sVoJlW_doFrwQrf-AvsE";
 
 async function readRows(tab, range = "A:Z") {
-    const resp = await sheets.spreadsheets.values.get({
-        spreadsheetId: SOURCE_SHEET_ID,
-        range: `${tab}!${range}`,
-    });
+    const resp = await withRetry(
+        () => sheets.spreadsheets.values.get({
+            spreadsheetId: SOURCE_SHEET_ID,
+            range: `${tab}!${range}`,
+        }),
+        { label: `read ${tab}` }
+    );
     return resp.data.values || [];
 }
 

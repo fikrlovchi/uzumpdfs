@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { createProductsPdf, uploadToDrive } from './functions/createPdf.js'
 import { parseOrderIds, buildProductsFromOrders, getBigFileIds } from './functions/sheetData.js'
+import { withRetry } from './functions/retry.js'
 import { drive, sheets } from "./google.js";
 
 const app = express();
@@ -57,9 +58,12 @@ setInterval(cleanupOldFiles, 6 * 60 * 60 * 1000);
 async function mergeDriveFiles(fileIds) {
     const merged = await PDFDocument.create();
     for (const fileId of fileIds) {
-        const file = await drive.files.get(
-            { fileId, alt: "media", supportsAllDrives: true },
-            { responseType: "arraybuffer" }
+        const file = await withRetry(
+            () => drive.files.get(
+                { fileId, alt: "media", supportsAllDrives: true },
+                { responseType: "arraybuffer" }
+            ),
+            { label: `drive get ${fileId}` }
         );
         const pdf = await PDFDocument.load(Buffer.from(file.data));
         const pages = await merged.copyPages(pdf, pdf.getPageIndices());
@@ -103,10 +107,13 @@ function groupInPairs(arr) {
 
 // 🔒 Natija sheetdagi A ustunda shu id allaqachon bormi? (dublikat webhookdan himoya)
 async function isDuplicate(spreadsheetId, tabName, id) {
-    const resp = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: `${tabName}!A:A`,
-    });
+    const resp = await withRetry(
+        () => sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: `${tabName}!A:A`,
+        }),
+        { label: `dup check ${tabName}` }
+    );
     const rows = resp.data.values || [];
     // 1-qator sarlavha (header), 2-qatordan boshlab tekshiramiz
     for (let i = 1; i < rows.length; i++) {
@@ -117,12 +124,15 @@ async function isDuplicate(spreadsheetId, tabName, id) {
 
 // Natija sheetga [id, url] qatorini yozish
 async function appendResult(spreadsheetId, tabName, id, url) {
-    await sheets.spreadsheets.values.append({
-        spreadsheetId,
-        range: `${tabName}!A:B`,
-        valueInputOption: "RAW",
-        requestBody: { values: [[id, url]] },
-    });
+    await withRetry(
+        () => sheets.spreadsheets.values.append({
+            spreadsheetId,
+            range: `${tabName}!A:B`,
+            valueInputOption: "RAW",
+            requestBody: { values: [[id, url]] },
+        }),
+        { label: `append ${tabName}` }
+    );
 }
 
 app.post("/generate-product-pdfs", async (req, res) => {

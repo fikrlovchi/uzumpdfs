@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
 import fontkit from "@pdf-lib/fontkit";
+import { withRetry } from "./retry.js";
 
 
 async function generateQrCodeBase64(text) {
@@ -332,26 +333,32 @@ async function uploadToDrive(buffer, fileName, folderId, drive) {
     const tempPath = `uploads/${fileName}`;
     fs.writeFileSync(tempPath, buffer);
 
-    const res = await drive.files.create({
-        requestBody: {
-            name: fileName,
-            mimeType: "application/pdf",
-            parents: [folderId],
-        },
-        media: {
-            mimeType: "application/pdf",
-            body: fs.createReadStream(tempPath),
-        },
-        supportsAllDrives: true,
-    });
+    const res = await withRetry(
+        () => drive.files.create({
+            requestBody: {
+                name: fileName,
+                mimeType: "application/pdf",
+                parents: [folderId],
+            },
+            media: {
+                mimeType: "application/pdf",
+                body: fs.createReadStream(tempPath),
+            },
+            supportsAllDrives: true,
+        }),
+        { label: "drive upload" }
+    );
 
     const fileId = res.data.id;
 
-    await drive.permissions.create({
-        fileId,
-        requestBody: { role: "reader", type: "anyone" },
-        supportsAllDrives: true,
-    });
+    await withRetry(
+        () => drive.permissions.create({
+            fileId,
+            requestBody: { role: "reader", type: "anyone" },
+            supportsAllDrives: true,
+        }),
+        { label: "drive permission" }
+    );
 
     return `https://drive.google.com/file/d/${fileId}/view`;
 }
