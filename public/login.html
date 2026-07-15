@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uzum PDF — Kirish</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background:#0f172a; color:#e2e8f0; }
+  .card { background:#1e293b; padding:32px; border-radius:16px; width:min(360px,92vw);
+    box-shadow:0 10px 40px rgba(0,0,0,.4); }
+  h1 { margin:0 0 4px; font-size:20px; }
+  p { margin:0 0 20px; color:#94a3b8; font-size:14px; }
+  input { width:100%; padding:12px 14px; border-radius:10px; border:1px solid #334155;
+    background:#0f172a; color:#e2e8f0; font-size:15px; }
+  button { width:100%; margin-top:14px; padding:12px; border:0; border-radius:10px;
+    background:#6366f1; color:#fff; font-size:15px; font-weight:600; cursor:pointer; }
+  button:hover { background:#4f46e5; }
+  .err { color:#f87171; font-size:13px; margin-top:10px; min-height:16px; }
+</style>
+</head>
+<body>
+  <form class="card" id="f">
+    <h1>Uzum PDF</h1>
+    <p>Davom etish uchun parolni kiriting</p>
+    <input type="password" id="pw" placeholder="Parol" autofocus autocomplete="current-password">
+    <button type="submit">Kirish</button>
+    <div class="err" id="err"></div>
+  </form>
+<script>
+  const f = document.getElementById('f');
+  const err = document.getElementById('err');
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.textContent = '';
+    const r = await fetch('/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ password: document.getElementById('pw').value })
+    });
+    if (r.ok) { location.href = '/'; }
+    else { err.textContent = 'Parol xato'; }
+  });
+</script>
+</body>
+</html>

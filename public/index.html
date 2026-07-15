@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uzum PDF Dashboard</title>
+<style>
+  :root { color-scheme: light dark; --bg:#0f172a; --card:#1e293b; --line:#334155;
+    --txt:#e2e8f0; --mut:#94a3b8; --accent:#6366f1; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--bg); color:var(--txt); }
+  header { display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:17px; margin:0; }
+  header a { color:var(--mut); font-size:13px; text-decoration:none; }
+  .wrap { max-width:1100px; margin:0 auto; padding:20px; display:grid;
+    grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:820px){ .wrap{ grid-template-columns:1fr; } }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; }
+  label { font-size:13px; color:var(--mut); display:block; margin-bottom:8px; }
+  textarea { width:100%; height:320px; resize:vertical; padding:12px; border-radius:10px;
+    border:1px solid var(--line); background:var(--bg); color:var(--txt);
+    font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px; }
+  .row { display:flex; gap:10px; margin-top:12px; }
+  button { flex:1; padding:12px; border:0; border-radius:10px; color:#fff; font-size:14px;
+    font-weight:600; cursor:pointer; background:var(--accent); }
+  button.merge { background:#0ea5e9; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .count { font-size:12px; color:var(--mut); margin-top:8px; }
+  .status { margin-top:14px; font-size:14px; min-height:22px; }
+  .spin { display:inline-block; width:14px; height:14px; border:2px solid var(--mut);
+    border-top-color:transparent; border-radius:50%; animation:s .7s linear infinite; vertical-align:-2px; margin-right:8px; }
+  @keyframes s { to{ transform:rotate(360deg); } }
+  .ok { color:#4ade80; } .bad { color:#f87171; }
+  .result a { color:#818cf8; }
+  iframe { width:100%; height:520px; border:1px solid var(--line); border-radius:10px; margin-top:12px; background:#fff; }
+  .empty { color:var(--mut); font-size:13px; text-align:center; padding:40px 0; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>📦 Uzum PDF Dashboard</h1>
+    <a href="/logout">Chiqish</a>
+  </header>
+  <div class="wrap">
+    <div class="panel">
+      <label>Order ID'lar (har qatorda bitta yoki vergul bilan)</label>
+      <textarea id="orders" placeholder="116649323&#10;116735910&#10;108424143 ..."></textarea>
+      <div class="count" id="count">0 ta order</div>
+      <div class="row">
+        <button id="genBtn" onclick="run('generate')">Generate (ShK)</button>
+        <button id="mrgBtn" class="merge" onclick="run('merge')">Merge (BIG)</button>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+    <div class="panel">
+      <label>Natija</label>
+      <div id="result"><div class="empty">Hali natija yo'q</div></div>
+    </div>
+  </div>
+<script>
+  const $ = id => document.getElementById(id);
+  const ordersEl = $('orders'), statusEl = $('status'), resultEl = $('result');
+
+  function parseIds(t){ return t.split(/[\s,]+/).map(s=>s.trim()).filter(Boolean); }
+  ordersEl.addEventListener('input', () => {
+    $('count').textContent = parseIds(ordersEl.value).length + ' ta order';
+  });
+
+  function setBusy(b){ $('genBtn').disabled=b; $('mrgBtn').disabled=b; }
+
+  async function run(kind){
+    const ids = parseIds(ordersEl.value);
+    if(!ids.length){ statusEl.innerHTML='<span class="bad">Order ID kiriting</span>'; return; }
+    setBusy(true);
+    statusEl.innerHTML = '<span class="spin"></span>Yuborilmoqda...';
+    resultEl.innerHTML = '<div class="empty">Tayyorlanmoqda...</div>';
+    try{
+      const r = await fetch('/'+kind, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ orderIds: ids }) });
+      if(r.status===401){ location.href='/login'; return; }
+      const { jobId, message } = await r.json();
+      if(!jobId){ throw new Error(message||'Server xatosi'); }
+      poll(jobId, kind);
+    }catch(e){ fail(e.message); }
+  }
+
+  function fail(msg){ statusEl.innerHTML='<span class="bad">Xato: '+msg+'</span>';
+    resultEl.innerHTML='<div class="empty">—</div>'; setBusy(false); }
+
+  async function poll(jobId, kind){
+    statusEl.innerHTML = '<span class="spin"></span>Generatsiya davom etyapti...';
+    try{
+      const r = await fetch('/job/'+jobId);
+      if(r.status===401){ location.href='/login'; return; }
+      const j = await r.json();
+      if(j.status==='pending'){ setTimeout(()=>poll(jobId,kind), 1500); return; }
+      if(j.status==='error'){ fail(j.error||'noma\'lum'); return; }
+      // done
+      const info = kind==='generate'
+        ? `${j.orders} order → ${j.pages} bet`
+        : `${j.orders} order → ${j.merged} fayl`;
+      statusEl.innerHTML = '<span class="ok">✓ Tayyor — '+info+'</span>';
+      resultEl.innerHTML =
+        '<div class="result"><a href="'+j.url+'" target="_blank">'+j.fileName+' ⬇</a></div>'+
+        '<iframe src="'+j.url+'"></iframe>';
+      setBusy(false);
+    }catch(e){ fail(e.message); }
+  }
+</script>
+</body>
+</html>

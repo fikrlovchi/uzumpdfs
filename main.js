@@ -6,6 +6,7 @@ import { createProductsPdf, uploadToDrive } from './functions/createPdf.js'
 import { parseOrderIds, buildProductsFromOrders, getBigFileIds } from './functions/sheetData.js'
 import { withRetry } from './functions/retry.js'
 import { drive, sheets } from "./google.js";
+import { randomUUID, createHash } from "crypto";
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
@@ -20,7 +21,69 @@ if (!fs.existsSync(uploadDir)) {
 //   {PUBLIC_BASE_URL}/files/<name>.pdf
 // uzum.fikrlovchi.uz domeni ulangach, PUBLIC_BASE_URL ni env orqali bering.
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "http://64.226.69.129:4040";
-app.use("/files", express.static(uploadDir));
+
+/* ==================== PAROL HIMOYASI (dashboard) ==================== */
+const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || "changeme";
+if (DASHBOARD_PASSWORD === "changeme") {
+    console.warn("⚠️  DASHBOARD_PASSWORD o'rnatilmagan — 'changeme' ishlatilyapti. env orqali o'zgartiring!");
+}
+const AUTH_TOKEN = createHash("sha256").update("uzum:" + DASHBOARD_PASSWORD).digest("hex");
+const publicDir = path.join(process.cwd(), "public");
+
+function parseCookies(req) {
+    const h = req.headers.cookie || "";
+    const out = {};
+    for (const part of h.split(";")) {
+        const i = part.indexOf("=");
+        if (i > 0) out[part.slice(0, i).trim()] = part.slice(i + 1).trim();
+    }
+    return out;
+}
+
+function requireAuth(req, res, next) {
+    if (parseCookies(req).uauth === AUTH_TOKEN) return next();
+    if (req.method === "GET" && (req.headers.accept || "").includes("text/html")) {
+        return res.redirect("/login");
+    }
+    return res.status(401).json({ status: "error", message: "auth kerak" });
+}
+
+app.get("/login", (req, res) => res.sendFile(path.join(publicDir, "login.html")));
+app.post("/login", (req, res) => {
+    if ((req.body?.password || "") === DASHBOARD_PASSWORD) {
+        const secure = (req.headers["x-forwarded-proto"] || "").includes("https") ? " Secure;" : "";
+        res.setHeader("Set-Cookie",
+            `uauth=${AUTH_TOKEN}; HttpOnly;${secure} SameSite=Lax; Path=/; Max-Age=${30 * 24 * 3600}`);
+        return res.json({ ok: true });
+    }
+    return res.status(401).json({ ok: false, message: "Parol xato" });
+});
+app.get("/logout", (req, res) => {
+    res.setHeader("Set-Cookie", "uauth=; HttpOnly; Path=/; Max-Age=0");
+    res.redirect("/login");
+});
+app.get("/", requireAuth, (req, res) => res.sendFile(path.join(publicDir, "index.html")));
+
+// Generatsiya qilingan PDF'lar (auth talab qilinadi)
+app.use("/files", requireAuth, express.static(uploadDir));
+
+/* ==================== ASINXRON JOB (progress uchun) ==================== */
+const jobs = new Map();   // jobId -> { status:'pending'|'done'|'error', ... }
+
+function newJob() {
+    const id = randomUUID();
+    jobs.set(id, { status: "pending", at: Date.now() });
+    return id;
+}
+function finishJob(id, data) {
+    const j = jobs.get(id);
+    if (j) jobs.set(id, { ...j, ...data });
+}
+// eski joblarni tozalash (1 soatdan keyin)
+setInterval(() => {
+    const now = Date.now();
+    for (const [id, j] of jobs) if (now - j.at > 60 * 60 * 1000) jobs.delete(id);
+}, 10 * 60 * 1000);
 
 // Standart PDF sozlamasi (dashboard keyin body.pdfConfig orqali o'zgartira oladi)
 const DEFAULT_PDF_CONFIG = {
@@ -284,55 +347,60 @@ app.post("/merge-drive-pdfs", async (req, res) => {
  * Google Sheets'dan bevosita o'qib PDF yasaydi va serverda saqlaydi.
  * ================================================================== */
 
-// order ID'lardan QR-yorliqlar PDF'ini yasaydi
-app.post("/generate", async (req, res) => {
-    try {
-        const orderIds = parseOrderIds(req.body.orderIds ?? req.body.orders);
-        if (!orderIds.length) {
-            return res.status(400).json({ status: "error", message: "orderIds required" });
-        }
-
-        const products = await buildProductsFromOrders(orderIds);
-        if (!products.length) {
-            return res.status(400).json({ status: "error", message: "Berilgan orderlar uchun detail topilmadi" });
-        }
-
-        const pdfConfig = req.body.pdfConfig || DEFAULT_PDF_CONFIG;
-        const pdfBytes = await createProductsPdf(products, pdfConfig);
-        const { fileName, url } = saveGeneratedPdf(Buffer.from(pdfBytes), "shk");
-
-        console.log(`[generate] ${orderIds.length} order -> ${products.length} bet -> ${fileName}`);
-        return res.json({ status: "ok", orders: orderIds.length, pages: products.length, fileName, url });
-
-    } catch (err) {
-        console.error("[generate]", err);
-        return res.status(500).json({ status: "error", message: err.message });
+// order ID'lardan QR-yorliqlar PDF'ini yasaydi (asinxron)
+app.post("/generate", requireAuth, async (req, res) => {
+    const orderIds = parseOrderIds(req.body.orderIds ?? req.body.orders);
+    if (!orderIds.length) {
+        return res.status(400).json({ status: "error", message: "orderIds required" });
     }
+    const pdfConfig = req.body.pdfConfig || DEFAULT_PDF_CONFIG;
+    const jobId = newJob();
+    res.json({ jobId });
+
+    (async () => {
+        try {
+            const products = await buildProductsFromOrders(orderIds);
+            if (!products.length) throw new Error("Berilgan orderlar uchun detail topilmadi");
+            const pdfBytes = await createProductsPdf(products, pdfConfig);
+            const { fileName, url } = saveGeneratedPdf(Buffer.from(pdfBytes), "shk");
+            console.log(`[generate] ${orderIds.length} order -> ${products.length} bet -> ${fileName}`);
+            finishJob(jobId, { status: "done", orders: orderIds.length, pages: products.length, fileName, url });
+        } catch (err) {
+            console.error("[generate]", err.message);
+            finishJob(jobId, { status: "error", error: err.message });
+        }
+    })();
 });
 
-// order ID'lardan BIG(N) Drive fayllarini merge qiladi
-app.post("/merge", async (req, res) => {
-    try {
-        const orderIds = parseOrderIds(req.body.orderIds ?? req.body.orders);
-        if (!orderIds.length) {
-            return res.status(400).json({ status: "error", message: "orderIds required" });
-        }
-
-        const fileIds = await getBigFileIds(orderIds);
-        if (!fileIds.length) {
-            return res.status(400).json({ status: "error", message: "Berilgan orderlar uchun BIG fayl topilmadi" });
-        }
-
-        const mergedBytes = await mergeDriveFiles(fileIds);
-        const { fileName, url } = saveGeneratedPdf(Buffer.from(mergedBytes), "big");
-
-        console.log(`[merge] ${orderIds.length} order -> ${fileIds.length} fayl -> ${fileName}`);
-        return res.json({ status: "ok", orders: orderIds.length, merged: fileIds.length, fileName, url });
-
-    } catch (err) {
-        console.error("[merge]", err);
-        return res.status(500).json({ status: "error", message: err.message });
+// order ID'lardan BIG(N) Drive fayllarini merge qiladi (asinxron)
+app.post("/merge", requireAuth, async (req, res) => {
+    const orderIds = parseOrderIds(req.body.orderIds ?? req.body.orders);
+    if (!orderIds.length) {
+        return res.status(400).json({ status: "error", message: "orderIds required" });
     }
+    const jobId = newJob();
+    res.json({ jobId });
+
+    (async () => {
+        try {
+            const fileIds = await getBigFileIds(orderIds);
+            if (!fileIds.length) throw new Error("Berilgan orderlar uchun BIG fayl topilmadi");
+            const mergedBytes = await mergeDriveFiles(fileIds);
+            const { fileName, url } = saveGeneratedPdf(Buffer.from(mergedBytes), "big");
+            console.log(`[merge] ${orderIds.length} order -> ${fileIds.length} fayl -> ${fileName}`);
+            finishJob(jobId, { status: "done", orders: orderIds.length, merged: fileIds.length, fileName, url });
+        } catch (err) {
+            console.error("[merge]", err.message);
+            finishJob(jobId, { status: "error", error: err.message });
+        }
+    })();
+});
+
+// job holatini tekshirish (dashboard poll qiladi)
+app.get("/job/:id", requireAuth, (req, res) => {
+    const j = jobs.get(req.params.id);
+    if (!j) return res.status(404).json({ status: "error", message: "job topilmadi" });
+    return res.json(j);
 });
 
 app.listen(4040, () => {
