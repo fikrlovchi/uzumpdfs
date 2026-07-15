@@ -3,7 +3,8 @@ import { PDFDocument, } from "pdf-lib";
 import fs from "fs";
 import path from "path";
 import { createProductsPdf, uploadToDrive } from './functions/createPdf.js'
-import { parseOrderIds, buildProductsFromOrders, getBigFileIds } from './functions/sheetData.js'
+import { parseOrderIds, buildProductsFromOrders, getShopTokenMap, getOrderShopMap } from './functions/sheetData.js'
+import { getLabelPdf } from './functions/uzumLabels.js'
 import { withRetry } from './functions/retry.js'
 import { drive, sheets } from "./google.js";
 import { randomUUID, createHash } from "crypto";
@@ -67,23 +68,62 @@ app.get("/", requireAuth, (req, res) => res.sendFile(path.join(publicDir, "index
 // Generatsiya qilingan PDF'lar (auth talab qilinadi)
 app.use("/files", requireAuth, express.static(uploadDir));
 
-/* ==================== ASINXRON JOB (progress uchun) ==================== */
-const jobs = new Map();   // jobId -> { status:'pending'|'done'|'error', ... }
+/* ==================== TARIX (history.json) ==================== */
+const HISTORY_FILE = path.join(process.cwd(), "history.json");
+function loadHistory() {
+    try { return JSON.parse(fs.readFileSync(HISTORY_FILE, "utf8")); }
+    catch { return []; }
+}
+function saveHistoryEntry(entry) {
+    const h = loadHistory();
+    h.unshift(entry);
+    fs.writeFileSync(HISTORY_FILE, JSON.stringify(h.slice(0, 1000), null, 2));
+}
 
-function newJob() {
-    const id = randomUUID();
-    jobs.set(id, { status: "pending", at: Date.now() });
-    return id;
-}
-function finishJob(id, data) {
-    const j = jobs.get(id);
-    if (j) jobs.set(id, { ...j, ...data });
-}
-// eski joblarni tozalash (1 soatdan keyin)
+/* ==================== BATCH (ShK + BIG birga) ==================== */
+const batches = new Map();   // batchId -> { shk, big, ... }
 setInterval(() => {
     const now = Date.now();
-    for (const [id, j] of jobs) if (now - j.at > 60 * 60 * 1000) jobs.delete(id);
+    for (const [id, b] of batches) if (now - b.at > 60 * 60 * 1000) batches.delete(id);
 }, 10 * 60 * 1000);
+
+/* ==================== YADRO: generate / merge ==================== */
+// ShK: order detallaridan QR-yorliqlar PDF
+async function runGenerate(orderIds, pdfConfig) {
+    const products = await buildProductsFromOrders(orderIds);
+    if (!products.length) throw new Error("Berilgan orderlar uchun detail topilmadi");
+    const pdfBytes = await createProductsPdf(products, pdfConfig);
+    const { fileName, url } = saveGeneratedPdf(Buffer.from(pdfBytes), "shk");
+    console.log(`[shk] ${orderIds.length} order -> ${products.length} bet -> ${fileName}`);
+    return { fileName, url, pages: products.length, orders: orderIds.length };
+}
+
+// BIG: har order label'ini Uzum API'dan olib (cache) bitta PDF'ga merge
+async function runMerge(orderIds) {
+    const [shopMap, orderShop] = await Promise.all([getShopTokenMap(), getOrderShopMap(orderIds)]);
+    const merged = await PDFDocument.create();
+    let count = 0;
+    const skipped = [];
+    for (const oid of orderIds) {
+        try {
+            const shopId = orderShop.get(oid);
+            const token = shopId ? shopMap.get(shopId) : null;
+            const buf = await getLabelPdf(oid, token);
+            const pdf = await PDFDocument.load(buf);
+            const pages = await merged.copyPages(pdf, pdf.getPageIndices());
+            pages.forEach(p => merged.addPage(p));
+            count++;
+        } catch (e) {
+            console.error(`[big] ${oid}: ${e.message}`);
+            skipped.push(oid);
+        }
+    }
+    if (!count) throw new Error("Hech qanday label olinmadi (token/shopId tekshiring)");
+    const bytes = await merged.save();
+    const { fileName, url } = saveGeneratedPdf(Buffer.from(bytes), "big");
+    console.log(`[big] ${orderIds.length} order -> ${count} fayl (skip ${skipped.length}) -> ${fileName}`);
+    return { fileName, url, merged: count, orders: orderIds.length, skipped: skipped.length };
+}
 
 // Standart PDF sozlamasi (dashboard keyin body.pdfConfig orqali o'zgartira oladi)
 const DEFAULT_PDF_CONFIG = {
@@ -347,61 +387,56 @@ app.post("/merge-drive-pdfs", async (req, res) => {
  * Google Sheets'dan bevosita o'qib PDF yasaydi va serverda saqlaydi.
  * ================================================================== */
 
-// order ID'lardan QR-yorliqlar PDF'ini yasaydi (asinxron)
-app.post("/generate", requireAuth, async (req, res) => {
+// Bitta tugma: ShK (generate) + BIG (merge) birga, mustaqil ishlaydi
+app.post("/process", requireAuth, (req, res) => {
     const orderIds = parseOrderIds(req.body.orderIds ?? req.body.orders);
     if (!orderIds.length) {
         return res.status(400).json({ status: "error", message: "orderIds required" });
     }
     const pdfConfig = req.body.pdfConfig || DEFAULT_PDF_CONFIG;
-    const jobId = newJob();
-    res.json({ jobId });
+
+    const batchId = randomUUID();
+    const batch = {
+        batchId, at: Date.now(), date: new Date().toISOString(), orders: orderIds.length,
+        shk: { status: "pending" }, big: { status: "pending" }, saved: false,
+    };
+    batches.set(batchId, batch);
+    res.json({ batchId });
+
+    const maybeSave = () => {
+        if (batch.shk.status === "pending" || batch.big.status === "pending" || batch.saved) return;
+        batch.saved = true;
+        saveHistoryEntry({
+            date: batch.date,
+            orders: batch.orders,
+            shk: batch.shk.status === "done"
+                ? { url: batch.shk.url, fileName: batch.shk.fileName, pages: batch.shk.pages } : null,
+            big: batch.big.status === "done"
+                ? { url: batch.big.url, fileName: batch.big.fileName, merged: batch.big.merged } : null,
+        });
+    };
 
     (async () => {
-        try {
-            const products = await buildProductsFromOrders(orderIds);
-            if (!products.length) throw new Error("Berilgan orderlar uchun detail topilmadi");
-            const pdfBytes = await createProductsPdf(products, pdfConfig);
-            const { fileName, url } = saveGeneratedPdf(Buffer.from(pdfBytes), "shk");
-            console.log(`[generate] ${orderIds.length} order -> ${products.length} bet -> ${fileName}`);
-            finishJob(jobId, { status: "done", orders: orderIds.length, pages: products.length, fileName, url });
-        } catch (err) {
-            console.error("[generate]", err.message);
-            finishJob(jobId, { status: "error", error: err.message });
-        }
+        try { batch.shk = { status: "done", ...(await runGenerate(orderIds, pdfConfig)) }; }
+        catch (e) { console.error("[shk]", e.message); batch.shk = { status: "error", error: e.message }; }
+        maybeSave();
+    })();
+    (async () => {
+        try { batch.big = { status: "done", ...(await runMerge(orderIds)) }; }
+        catch (e) { console.error("[big]", e.message); batch.big = { status: "error", error: e.message }; }
+        maybeSave();
     })();
 });
 
-// order ID'lardan BIG(N) Drive fayllarini merge qiladi (asinxron)
-app.post("/merge", requireAuth, async (req, res) => {
-    const orderIds = parseOrderIds(req.body.orderIds ?? req.body.orders);
-    if (!orderIds.length) {
-        return res.status(400).json({ status: "error", message: "orderIds required" });
-    }
-    const jobId = newJob();
-    res.json({ jobId });
-
-    (async () => {
-        try {
-            const fileIds = await getBigFileIds(orderIds);
-            if (!fileIds.length) throw new Error("Berilgan orderlar uchun BIG fayl topilmadi");
-            const mergedBytes = await mergeDriveFiles(fileIds);
-            const { fileName, url } = saveGeneratedPdf(Buffer.from(mergedBytes), "big");
-            console.log(`[merge] ${orderIds.length} order -> ${fileIds.length} fayl -> ${fileName}`);
-            finishJob(jobId, { status: "done", orders: orderIds.length, merged: fileIds.length, fileName, url });
-        } catch (err) {
-            console.error("[merge]", err.message);
-            finishJob(jobId, { status: "error", error: err.message });
-        }
-    })();
+// batch holatini tekshirish (dashboard poll qiladi)
+app.get("/batch/:id", requireAuth, (req, res) => {
+    const b = batches.get(req.params.id);
+    if (!b) return res.status(404).json({ status: "error", message: "batch topilmadi" });
+    return res.json(b);
 });
 
-// job holatini tekshirish (dashboard poll qiladi)
-app.get("/job/:id", requireAuth, (req, res) => {
-    const j = jobs.get(req.params.id);
-    if (!j) return res.status(404).json({ status: "error", message: "job topilmadi" });
-    return res.json(j);
-});
+// tarix
+app.get("/history", requireAuth, (req, res) => res.json(loadHistory()));
 
 app.listen(4040, () => {
     console.log("Server running on 4040");

@@ -14,28 +14,38 @@
     padding:14px 20px; border-bottom:1px solid var(--line); }
   header h1 { font-size:17px; margin:0; }
   header a { color:var(--mut); font-size:13px; text-decoration:none; }
-  .wrap { max-width:1100px; margin:0 auto; padding:20px; display:grid;
-    grid-template-columns:1fr 1fr; gap:20px; }
-  @media (max-width:820px){ .wrap{ grid-template-columns:1fr; } }
-  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; }
-  label { font-size:13px; color:var(--mut); display:block; margin-bottom:8px; }
-  textarea { width:100%; height:320px; resize:vertical; padding:12px; border-radius:10px;
+  .wrap { max-width:1200px; margin:0 auto; padding:20px; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:18px; }
+  label { font-size:13px; color:var(--mut); display:block; margin-bottom:6px; }
+  textarea { width:100%; height:150px; resize:vertical; padding:12px; border-radius:10px;
     border:1px solid var(--line); background:var(--bg); color:var(--txt);
     font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px; }
-  .row { display:flex; gap:10px; margin-top:12px; }
-  button { flex:1; padding:12px; border:0; border-radius:10px; color:#fff; font-size:14px;
-    font-weight:600; cursor:pointer; background:var(--accent); }
-  button.merge { background:#0ea5e9; }
-  button:disabled { opacity:.5; cursor:not-allowed; }
   .count { font-size:12px; color:var(--mut); margin-top:8px; }
-  .status { margin-top:14px; font-size:14px; min-height:22px; }
-  .spin { display:inline-block; width:14px; height:14px; border:2px solid var(--mut);
-    border-top-color:transparent; border-radius:50%; animation:s .7s linear infinite; vertical-align:-2px; margin-right:8px; }
+  button.run { width:100%; margin-top:14px; padding:13px; border:0; border-radius:10px; color:#fff;
+    font-size:15px; font-weight:600; cursor:pointer; background:var(--accent); }
+  button.run:hover { background:#4f46e5; }
+  button.run:disabled { opacity:.5; cursor:not-allowed; }
+  details { margin-top:14px; border:1px solid var(--line); border-radius:10px; padding:10px 14px; }
+  summary { cursor:pointer; font-size:14px; color:var(--txt); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px 14px; margin-top:14px; }
+  .grid label { margin-bottom:3px; }
+  .grid input, .grid select { width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line);
+    background:var(--bg); color:var(--txt); font-size:13px; }
+  .results { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  @media (max-width:820px){ .results{ grid-template-columns:1fr; } }
+  .pane h3 { margin:0 0 10px; font-size:15px; }
+  .status { font-size:13px; min-height:20px; margin-bottom:10px; }
+  .spin { display:inline-block; width:13px; height:13px; border:2px solid var(--mut);
+    border-top-color:transparent; border-radius:50%; animation:s .7s linear infinite; vertical-align:-2px; margin-right:7px; }
   @keyframes s { to{ transform:rotate(360deg); } }
-  .ok { color:#4ade80; } .bad { color:#f87171; }
-  .result a { color:#818cf8; }
-  iframe { width:100%; height:520px; border:1px solid var(--line); border-radius:10px; margin-top:12px; background:#fff; }
-  .empty { color:var(--mut); font-size:13px; text-align:center; padding:40px 0; }
+  .ok { color:#4ade80; } .bad { color:#f87171; } .wait { color:var(--mut); }
+  .pane a { color:#818cf8; font-size:13px; }
+  iframe { width:100%; height:440px; border:1px solid var(--line); border-radius:10px; margin-top:10px; background:#fff; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--mut); font-weight:600; }
+  td a { color:#818cf8; text-decoration:none; }
+  .muted { color:var(--mut); }
 </style>
 </head>
 <body>
@@ -48,66 +58,123 @@
       <label>Order ID'lar (har qatorda bitta yoki vergul bilan)</label>
       <textarea id="orders" placeholder="116649323&#10;116735910&#10;108424143 ..."></textarea>
       <div class="count" id="count">0 ta order</div>
-      <div class="row">
-        <button id="genBtn" onclick="run('generate')">Generate (ShK)</button>
-        <button id="mrgBtn" class="merge" onclick="run('merge')">Merge (BIG)</button>
-      </div>
-      <div class="status" id="status"></div>
+
+      <details>
+        <summary>⚙️ PDF konstruktor (ShK yorliqlari)</summary>
+        <div class="grid">
+          <div><label>Qog'oz kengligi</label><input type="number" id="pw" value="594"></div>
+          <div><label>Qog'oz balandligi</label><input type="number" id="ph" value="420"></div>
+          <div><label>Orientatsiya</label><select id="ori"><option value="portrait">portrait</option><option value="landscape">landscape</option></select></div>
+          <div><label>QR o'lchami</label><input type="number" id="qr" value="360"></div>
+          <div><label>QR X</label><input type="number" id="qx" value="90"></div>
+          <div><label>QR Y</label><input type="number" id="qy" value="40"></div>
+          <div><label>Matn (yuqori)</label><input type="number" id="tt" value="24"></div>
+          <div><label>Matn (past)</label><input type="number" id="tb" value="50"></div>
+          <div><label>Title X <span class="muted">(ixt.)</span></label><input type="number" id="tx" placeholder="auto"></div>
+          <div><label>Title Y <span class="muted">(ixt.)</span></label><input type="number" id="ty" placeholder="auto"></div>
+          <div><label>Barcode X <span class="muted">(ixt.)</span></label><input type="number" id="bx" placeholder="auto"></div>
+          <div><label>Barcode Y <span class="muted">(ixt.)</span></label><input type="number" id="by" placeholder="auto"></div>
+        </div>
+      </details>
+
+      <button class="run" id="runBtn" onclick="process()">Ishga tushirish (ShK + BIG)</button>
     </div>
+
     <div class="panel">
-      <label>Natija</label>
-      <div id="result"><div class="empty">Hali natija yo'q</div></div>
+      <div class="results">
+        <div class="pane">
+          <h3>🏷️ ShK (yorliqlar)</h3>
+          <div class="status wait" id="shkStatus">—</div>
+          <div id="shkResult"></div>
+        </div>
+        <div class="pane">
+          <h3>📄 BIG (Uzum label)</h3>
+          <div class="status wait" id="bigStatus">—</div>
+          <div id="bigResult"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <label>Tarix</label>
+      <table>
+        <thead><tr><th>Sana / vaqt</th><th>Order</th><th>ShK</th><th>BIG</th></tr></thead>
+        <tbody id="histBody"><tr><td colspan="4" class="muted">Yuklanmoqda...</td></tr></tbody>
+      </table>
     </div>
   </div>
+
 <script>
   const $ = id => document.getElementById(id);
-  const ordersEl = $('orders'), statusEl = $('status'), resultEl = $('result');
+  const ordersEl = $('orders');
+  const parseIds = t => t.split(/[\s,]+/).map(s=>s.trim()).filter(Boolean);
+  ordersEl.addEventListener('input', () => $('count').textContent = parseIds(ordersEl.value).length + ' ta order');
 
-  function parseIds(t){ return t.split(/[\s,]+/).map(s=>s.trim()).filter(Boolean); }
-  ordersEl.addEventListener('input', () => {
-    $('count').textContent = parseIds(ordersEl.value).length + ' ta order';
-  });
+  const num = id => { const v = $(id).value.trim(); return v==='' ? null : Number(v); };
+  function buildConfig(){
+    const cfg = {
+      orientation: $('ori').value,
+      qrSize: num('qr'),
+      pageSize: { width: num('pw'), height: num('ph') },
+      textSize: { top: num('tt'), bottom: num('tb') },
+      qrPosition: { x: num('qx'), y: num('qy') },
+    };
+    const tx=num('tx'), ty=num('ty'); if(tx!==null||ty!==null) cfg.titlePosition={x:tx,y:ty};
+    const bx=num('bx'), by=num('by'); if(bx!==null||by!==null) cfg.barcodePosition={x:bx,y:by};
+    return cfg;
+  }
 
-  function setBusy(b){ $('genBtn').disabled=b; $('mrgBtn').disabled=b; }
+  function renderPane(kind, s){
+    const statusEl = $(kind+'Status'), resEl = $(kind+'Result');
+    if(!s || s.status==='pending'){ statusEl.className='status wait'; statusEl.innerHTML='<span class="spin"></span>Kutilmoqda...'; return; }
+    if(s.status==='error'){ statusEl.className='status bad'; statusEl.textContent='Xato: '+(s.error||'?'); resEl.innerHTML=''; return; }
+    // done
+    const info = kind==='shk' ? `${s.orders} order → ${s.pages} bet`
+      : `${s.orders} order → ${s.merged} fayl${s.skipped?` (skip ${s.skipped})`:''}`;
+    statusEl.className='status ok'; statusEl.innerHTML='✓ Tayyor — '+info;
+    resEl.innerHTML = '<a href="'+s.url+'" target="_blank">'+s.fileName+' ⬇</a><iframe src="'+s.url+'"></iframe>';
+  }
 
-  async function run(kind){
+  let poller = null;
+  async function process(){
     const ids = parseIds(ordersEl.value);
-    if(!ids.length){ statusEl.innerHTML='<span class="bad">Order ID kiriting</span>'; return; }
-    setBusy(true);
-    statusEl.innerHTML = '<span class="spin"></span>Yuborilmoqda...';
-    resultEl.innerHTML = '<div class="empty">Tayyorlanmoqda...</div>';
+    if(!ids.length){ $('shkStatus').className='status bad'; $('shkStatus').textContent='Order ID kiriting'; return; }
+    $('runBtn').disabled = true;
+    $('shkResult').innerHTML=''; $('bigResult').innerHTML='';
+    renderPane('shk', null); renderPane('big', null);
     try{
-      const r = await fetch('/'+kind, { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ orderIds: ids }) });
+      const r = await fetch('/process', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ orderIds: ids, pdfConfig: buildConfig() }) });
       if(r.status===401){ location.href='/login'; return; }
-      const { jobId, message } = await r.json();
-      if(!jobId){ throw new Error(message||'Server xatosi'); }
-      poll(jobId, kind);
-    }catch(e){ fail(e.message); }
+      const { batchId, message } = await r.json();
+      if(!batchId) throw new Error(message||'Server xatosi');
+      pollBatch(batchId);
+    }catch(e){ $('shkStatus').className='status bad'; $('shkStatus').textContent='Xato: '+e.message; $('runBtn').disabled=false; }
   }
 
-  function fail(msg){ statusEl.innerHTML='<span class="bad">Xato: '+msg+'</span>';
-    resultEl.innerHTML='<div class="empty">—</div>'; setBusy(false); }
-
-  async function poll(jobId, kind){
-    statusEl.innerHTML = '<span class="spin"></span>Generatsiya davom etyapti...';
-    try{
-      const r = await fetch('/job/'+jobId);
-      if(r.status===401){ location.href='/login'; return; }
-      const j = await r.json();
-      if(j.status==='pending'){ setTimeout(()=>poll(jobId,kind), 1500); return; }
-      if(j.status==='error'){ fail(j.error||'noma\'lum'); return; }
-      // done
-      const info = kind==='generate'
-        ? `${j.orders} order → ${j.pages} bet`
-        : `${j.orders} order → ${j.merged} fayl`;
-      statusEl.innerHTML = '<span class="ok">✓ Tayyor — '+info+'</span>';
-      resultEl.innerHTML =
-        '<div class="result"><a href="'+j.url+'" target="_blank">'+j.fileName+' ⬇</a></div>'+
-        '<iframe src="'+j.url+'"></iframe>';
-      setBusy(false);
-    }catch(e){ fail(e.message); }
+  async function pollBatch(batchId){
+    const r = await fetch('/batch/'+batchId);
+    if(r.status===401){ location.href='/login'; return; }
+    const b = await r.json();
+    renderPane('shk', b.shk);
+    renderPane('big', b.big);
+    const running = b.shk?.status==='pending' || b.big?.status==='pending';
+    if(running){ poller = setTimeout(()=>pollBatch(batchId), 1500); }
+    else { $('runBtn').disabled=false; loadHistory(); }
   }
+
+  async function loadHistory(){
+    try{
+      const r = await fetch('/history');
+      if(r.status===401){ location.href='/login'; return; }
+      const h = await r.json();
+      const link = f => f && f.url ? '<a href="'+f.url+'" target="_blank">'+f.fileName+'</a>' : '<span class="muted">—</span>';
+      $('histBody').innerHTML = h.length
+        ? h.map(e=>`<tr><td>${new Date(e.date).toLocaleString('uz')}</td><td>${e.orders}</td><td>${link(e.shk)}</td><td>${link(e.big)}</td></tr>`).join('')
+        : '<tr><td colspan="4" class="muted">Hali tarix yo\'q</td></tr>';
+    }catch(e){ $('histBody').innerHTML='<tr><td colspan="4" class="bad">Tarix yuklanmadi</td></tr>'; }
+  }
+  loadHistory();
 </script>
 </body>
 </html>

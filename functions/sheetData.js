@@ -107,4 +107,28 @@ async function getBigFileIds(orderIds) {
     return ids;
 }
 
-export { parseOrderIds, buildProductsFromOrders, getBigFileIds };
+/* ---------- uzum_shop: shopId(A) -> token(C) ---------- */
+async function getShopTokenMap() {
+    const rows = await readRows("uzum_shop", "A:C");
+    const map = new Map();
+    for (let i = 1; i < rows.length; i++) {
+        const id = String(rows[i][0] ?? "").trim();   // A: shopId
+        const tok = rows[i][2];                        // C: token
+        if (id && tok) map.set(id, String(tok));
+    }
+    return map;
+}
+
+/* ---------- uzum_order: id(A) -> shopId(G) ---------- */
+async function getOrderShopMap(orderIds) {
+    const set = new Set(orderIds);
+    const rows = await readRows("uzum_order", "A:G");
+    const map = new Map();
+    for (let i = 1; i < rows.length; i++) {
+        const id = String(rows[i][0] ?? "").trim();    // A: id
+        if (set.has(id)) map.set(id, String(rows[i][6] ?? "").trim()); // G: shopId
+    }
+    return map;
+}
+
+export { parseOrderIds, buildProductsFromOrders, getBigFileIds, getShopTokenMap, getOrderShopMap };
