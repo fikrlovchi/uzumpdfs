@@ -144,14 +144,18 @@ function saveGeneratedPdf(buffer, prefix) {
 // Eski fayllarni avto-tozalash (disk to'lmasligi uchun)
 const FILE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7 kun
 function cleanupOldFiles() {
-    try {
-        const now = Date.now();
-        for (const f of fs.readdirSync(uploadDir)) {
+    const now = Date.now();
+    let entries = [];
+    try { entries = fs.readdirSync(uploadDir); } catch { return; }
+    for (const f of entries) {
+        try {
             const p = path.join(uploadDir, f);
-            if (now - fs.statSync(p).mtimeMs > FILE_RETENTION_MS) fs.unlinkSync(p);
+            const st = fs.statSync(p);
+            // faqat fayllar (labels/ tagpapkasiga tegmaymiz — u cache)
+            if (st.isFile() && now - st.mtimeMs > FILE_RETENTION_MS) fs.unlinkSync(p);
+        } catch (e) {
+            console.error("cleanup xato:", f, e.message);
         }
-    } catch (e) {
-        console.error("cleanup xato:", e.message);
     }
 }
 cleanupOldFiles();
