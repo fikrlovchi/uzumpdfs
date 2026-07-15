@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Uzum PDF — Kirish</title>
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
@@ -12,18 +15,20 @@
     background:#0f172a; color:#e2e8f0; }
   .card { background:#1e293b; padding:32px; border-radius:16px; width:min(360px,92vw);
     box-shadow:0 10px 40px rgba(0,0,0,.4); }
-  h1 { margin:0 0 4px; font-size:20px; }
-  p { margin:0 0 20px; color:#94a3b8; font-size:14px; }
+  .logo { width:56px; height:56px; display:block; margin:0 auto 14px; }
+  h1 { margin:0 0 4px; font-size:20px; font-family:"Montserrat",system-ui,sans-serif; text-align:center; }
+  p { margin:0 0 20px; color:#94a3b8; font-size:14px; text-align:center; }
   input { width:100%; padding:12px 14px; border-radius:10px; border:1px solid #334155;
     background:#0f172a; color:#e2e8f0; font-size:15px; }
   button { width:100%; margin-top:14px; padding:12px; border:0; border-radius:10px;
-    background:#6366f1; color:#fff; font-size:15px; font-weight:600; cursor:pointer; }
-  button:hover { background:#4f46e5; }
+    background:linear-gradient(135deg,#2ecc8f,#38bdf8); color:#0f172a; font-size:15px; font-weight:700; cursor:pointer; }
+  button:hover { filter:brightness(1.08); }
   .err { color:#f87171; font-size:13px; margin-top:10px; min-height:16px; }
 </style>
 </head>
 <body>
   <form class="card" id="f">
+    <img src="/logo.svg" alt="" class="logo">
     <h1>Uzum PDF</h1>
     <p>Davom etish uchun parolni kiriting</p>
     <input type="password" id="pw" placeholder="Parol" autofocus autocomplete="current-password">

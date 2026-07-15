@@ -49,6 +49,7 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ status: "error", message: "auth kerak" });
 }
 
+app.get("/logo.svg", (req, res) => res.sendFile(path.join(publicDir, "logo.svg")));
 app.get("/login", (req, res) => res.sendFile(path.join(publicDir, "login.html")));
 app.post("/login", (req, res) => {
     if ((req.body?.password || "") === DASHBOARD_PASSWORD) {
