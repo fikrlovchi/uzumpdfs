@@ -135,9 +135,18 @@
     return cfg;
   }
 
+  // Har panel oxirgi holatini eslab qolamiz — o'zgarmagan bo'lsa QAYTA CHIZMAYMIZ
+  // (aks holda ShK iframe har polling'da qayta yuklanib "oqarib" ketardi).
+  let rendered = { shk:'', big:'' };
   function renderPane(kind, s){
+    const sig = !s || s.status==='pending' ? 'pending'
+      : s.status==='error' ? 'error:'+(s.error||'?')
+      : 'done:'+s.url;
+    if(rendered[kind] === sig) return;   // o'zgarish yo'q — tegmaymiz
+    rendered[kind] = sig;
+
     const statusEl = $(kind+'Status'), resEl = $(kind+'Result');
-    if(!s || s.status==='pending'){ statusEl.className='status wait'; statusEl.innerHTML='<span class="spin"></span>Kutilmoqda...'; return; }
+    if(sig === 'pending'){ statusEl.className='status wait'; statusEl.innerHTML='<span class="spin"></span>Kutilmoqda...'; return; }
     if(s.status==='error'){ statusEl.className='status bad'; statusEl.textContent='Xato: '+(s.error||'?'); resEl.innerHTML=''; return; }
     // done
     const info = kind==='shk' ? `${s.orders} order → ${s.pages} bet`
@@ -152,6 +161,7 @@
     if(!ids.length){ $('shkStatus').className='status bad'; $('shkStatus').textContent='Order ID kiriting'; return; }
     $('runBtn').disabled = true;
     $('shkResult').innerHTML=''; $('bigResult').innerHTML='';
+    rendered = { shk:'', big:'' };
     renderPane('shk', null); renderPane('big', null);
     try{
       const r = await fetch('/process', { method:'POST', headers:{'Content-Type':'application/json'},
