@@ -191,15 +191,21 @@ async function createProductPdf(product, options = {}) {
 // Shrift bir marta embed qilinadi, QR kodlar parallel generatsiya qilinadi,
 // merge bosqichi kerak emas — 100-400 bet uchun bir necha barobar tez.
 async function createProductsPdf(products, options = {}) {
-    const {
-        qrSize = 280,
-        orientation = "landscape",
-        qrPosition = null,
-        titlePosition = null,
-        barcodePosition = null,
-        pageSize = { width: 400, height: 400 },
-        textSize = { top: 24, bottom: 30 }
-    } = options;
+    // Konfigni tozalaymiz: null/bo'sh/noto'g'ri qiymatlar default'ga tushadi
+    // (dashboard konstruktorida bo'sh maydon null yuborishi mumkin edi).
+    const opt = options || {};
+    const n = (v, d) => (typeof v === "number" && !Number.isNaN(v)) ? v : d;
+    const qrSize = n(opt.qrSize, 280);
+    const orientation = opt.orientation === "portrait" ? "portrait" : "landscape";
+    const pageSize = { width: n(opt.pageSize && opt.pageSize.width, 400), height: n(opt.pageSize && opt.pageSize.height, 400) };
+    const textSize = { top: n(opt.textSize && opt.textSize.top, 24), bottom: n(opt.textSize && opt.textSize.bottom, 30) };
+    // qrPosition: faqat x VA y ikkalasi raqam bo'lsa ishlatiladi, aks holda avto-markaz
+    const qp = opt.qrPosition;
+    const qrPosition = (qp && typeof qp.x === "number" && typeof qp.y === "number") ? { x: qp.x, y: qp.y } : null;
+    // title/barcode: har o'q alohida (bittasi berilsa ham bo'ladi, bo'sh bo'lsa avto)
+    const axis = p => { if (!p) return null; const x = n(p.x, null), y = n(p.y, null); return (x === null && y === null) ? null : { x, y }; };
+    const titlePosition = axis(opt.titlePosition);
+    const barcodePosition = axis(opt.barcodePosition);
 
     const width = orientation === "portrait" ? pageSize.width : pageSize.height;
     const height = orientation === "portrait" ? pageSize.height : pageSize.width;

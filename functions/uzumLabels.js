@@ -10,7 +10,7 @@ if (!fs.existsSync(LABELS_DIR)) fs.mkdirSync(LABELS_DIR, { recursive: true });
 
 // oddiy throttle: so'rovlar orasida kamida minGapMs
 let lastCall = 0;
-async function throttle(minGapMs = 500) {
+async function throttle(minGapMs = 600) {
     const wait = Math.max(0, lastCall + minGapMs - Date.now());
     if (wait) await new Promise(r => setTimeout(r, wait));
     lastCall = Date.now();
