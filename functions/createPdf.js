@@ -104,7 +104,7 @@ async function createProductPdf(product, options = {}) {
             page.drawText(line, {
                 x: startX + (index * lh),
                 // titlePosition.y berilsa o'shani ishlatamiz, aks holda vertikal markaz
-                y: titlePosition && titlePosition.y != null ? titlePosition.y : (height - lineWidth) / 2,
+                y: (titlePosition && titlePosition.y != null ? titlePosition.y : height / 2) - lineWidth / 2,
                 size: fontSize,
                 font,
                 rotate: degrees(90),
@@ -160,7 +160,7 @@ async function createProductPdf(product, options = {}) {
 
         // barcodePosition.y berilsa o'shani ishlatamiz, aks holda vertikal markaz
         const baseY = barcodePosition && barcodePosition.y != null
-            ? barcodePosition.y
+            ? barcodePosition.y - (normalTextWidth + boldTextWidth) / 2
             : (height - (normalTextWidth + boldTextWidth)) / 2;
 
         // Oddiy qism
@@ -260,7 +260,7 @@ async function createProductsPdf(products, options = {}) {
                 const lineWidth = font.widthOfTextAtSize(line, fontSize);
                 page.drawText(line, {
                     x: startX + (index * lh),
-                    y: titlePosition && titlePosition.y != null ? titlePosition.y : (height - lineWidth) / 2,
+                    y: (titlePosition && titlePosition.y != null ? titlePosition.y : height / 2) - lineWidth / 2,
                     size: fontSize,
                     font,
                     rotate: degrees(90),
@@ -301,7 +301,7 @@ async function createProductsPdf(products, options = {}) {
             const normalTextWidth = normalFont.widthOfTextAtSize(normalText, textSize.bottom);
             const boldTextWidth = boldFont.widthOfTextAtSize(boldText, textSize.bottom);
             const baseY = barcodePosition && barcodePosition.y != null
-                ? barcodePosition.y
+                ? barcodePosition.y - (normalTextWidth + boldTextWidth) / 2
                 : (height - (normalTextWidth + boldTextWidth)) / 2;
 
             page.drawText(normalText, {

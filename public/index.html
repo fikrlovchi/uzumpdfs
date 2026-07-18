@@ -211,10 +211,16 @@
       st.textContent = '';
     }catch(e){ st.textContent = ' — xato: '+e.message; }
   }
+  // konstruktor qiymatlari localStorage'da saqlanadi (sahifa yangilansa ham qoladi)
+  const CFG_KEYS = ['pw','ph','ori','qr','qx','qy','tt','tb','tx','ty','bx','by'];
+  function saveCfg(){ const o={}; CFG_KEYS.forEach(k=>o[k]=$(k).value); localStorage.setItem('uzumPdfCfg', JSON.stringify(o)); }
+  function loadCfg(){ try{ const o=JSON.parse(localStorage.getItem('uzumPdfCfg')||'{}'); CFG_KEYS.forEach(k=>{ if(o[k]!==undefined) $(k).value=o[k]; }); }catch{} }
+  loadCfg();
+
   const schedulePreview = () => { clearTimeout(previewTimer); previewTimer = setTimeout(doPreview, 400); };
-  ['pw','ph','ori','qr','qx','qy','tt','tb','tx','ty','bx','by'].forEach(id=>{
-    $(id).addEventListener('input', schedulePreview);
-    $(id).addEventListener('change', schedulePreview);
+  CFG_KEYS.forEach(id=>{
+    $(id).addEventListener('input', ()=>{ saveCfg(); schedulePreview(); });
+    $(id).addEventListener('change', ()=>{ saveCfg(); schedulePreview(); });
   });
   // konstruktor birinchi ochilganda preview yuklanadi
   document.querySelector('details').addEventListener('toggle', e => { if(e.target.open && !previewUrl) doPreview(); });
