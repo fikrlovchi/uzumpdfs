@@ -199,6 +199,9 @@ async function createProductsPdf(products, options = {}) {
     const orientation = opt.orientation === "portrait" ? "portrait" : "landscape";
     const pageSize = { width: n(opt.pageSize && opt.pageSize.width, 400), height: n(opt.pageSize && opt.pageSize.height, 400) };
     const textSize = { top: n(opt.textSize && opt.textSize.top, 24), bottom: n(opt.textSize && opt.textSize.bottom, 30) };
+    // shtrix-kod va buyurtma raqami uchun alohida o'lcham (berilmasa textSize.bottom)
+    const barcodeSize = n(opt.barcodeSize, textSize.bottom);
+    const orderSize = n(opt.orderSize, textSize.bottom);
     // qrPosition: faqat x VA y ikkalasi raqam bo'lsa ishlatiladi, aks holda avto-markaz
     const qp = opt.qrPosition;
     const qrPosition = (qp && typeof qp.x === "number" && typeof qp.y === "number") ? { x: qp.x, y: qp.y } : null;
@@ -293,30 +296,39 @@ async function createProductsPdf(products, options = {}) {
             height: qrSize,
         });
 
-        // ---- Barcode (vertikal) ----
-        const barcodes = `${barcode}`.split(',').map(b => b.trim()).filter(b => b.length > 0);
+        // ---- Shtrix-kod + Buyurtma raqami (vertikal, alohida o'lcham) ----
+        // barcode = "1000111953348,117360845" -> [shtrix, buyurtma]
+        const parts = `${barcode}`.split(',').map(b => b.trim()).filter(b => b.length > 0);
+        const barcodeVal = parts[0] || '';
+        const orderVal = parts.length > 1 ? parts.slice(1).join(',') : '';
+
+        // O'RNI ALMASHTIRILDI: buyurtma raqami ichkarida (QR yaqin), shtrix tashqarida
+        const columns = [];
+        if (orderVal) columns.push({ text: orderVal, size: orderSize });
+        if (barcodeVal) columns.push({ text: barcodeVal, size: barcodeSize });
+
         const baseX = barcodePosition && barcodePosition.x != null
             ? barcodePosition.x
             : finalQrPosition.x + qrSize + 20;
-        const barcodeLineHeight = textSize.bottom * 1.2;
 
-        barcodes.forEach((bc, index) => {
-            const currentX = baseX + (index * barcodeLineHeight);
-            const normalText = bc.slice(0, -4);
-            const boldText = bc.slice(-4);
-            const normalTextWidth = normalFont.widthOfTextAtSize(normalText, textSize.bottom);
-            const boldTextWidth = boldFont.widthOfTextAtSize(boldText, textSize.bottom);
+        let colX = baseX;
+        for (const col of columns) {
+            const normalText = col.text.slice(0, -4);
+            const boldText = col.text.slice(-4);
+            const normalTextWidth = normalFont.widthOfTextAtSize(normalText, col.size);
+            const boldTextWidth = boldFont.widthOfTextAtSize(boldText, col.size);
             const baseY = barcodePosition && barcodePosition.y != null
                 ? barcodePosition.y - (normalTextWidth + boldTextWidth) / 2
                 : (height - (normalTextWidth + boldTextWidth)) / 2;
 
             page.drawText(normalText, {
-                x: currentX, y: baseY, size: textSize.bottom, font: normalFont, rotate: degrees(90),
+                x: colX, y: baseY, size: col.size, font: normalFont, rotate: degrees(90),
             });
             page.drawText(boldText, {
-                x: currentX, y: baseY + normalTextWidth, size: textSize.bottom, font: boldFont, rotate: degrees(90),
+                x: colX, y: baseY + normalTextWidth, size: col.size, font: boldFont, rotate: degrees(90),
             });
-        });
+            colX += col.size * 1.2;
+        }
     }
 
     return await pdfDoc.save();
