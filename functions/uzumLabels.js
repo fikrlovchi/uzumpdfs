@@ -5,8 +5,24 @@ import fs from "fs";
 import path from "path";
 import { withRetry } from "./retry.js";
 
-const LABELS_DIR = path.join(process.cwd(), "uploads", "labels");
+// Umumiy (shared) cache papka — uzumOrderToMC ham shu yerga label yozadi.
+// Serverda ikkala servisda ham LABEL_CACHE_DIR env bir xil bo'lishi kerak.
+const LABELS_DIR = process.env.LABEL_CACHE_DIR || path.join(process.cwd(), "uploads", "labels");
 if (!fs.existsSync(LABELS_DIR)) fs.mkdirSync(LABELS_DIR, { recursive: true });
+
+// Eski label'larni tozalash (default 3 kun)
+function cleanupOldLabels(maxAgeMs = 3 * 24 * 60 * 60 * 1000) {
+    const now = Date.now();
+    let entries = [];
+    try { entries = fs.readdirSync(LABELS_DIR); } catch { return; }
+    for (const f of entries) {
+        try {
+            const p = path.join(LABELS_DIR, f);
+            const st = fs.statSync(p);
+            if (st.isFile() && now - st.mtimeMs > maxAgeMs) fs.unlinkSync(p);
+        } catch (e) { console.error("label cleanup:", f, e.message); }
+    }
+}
 
 // oddiy throttle: so'rovlar orasida kamida minGapMs
 let lastCall = 0;
@@ -41,4 +57,4 @@ async function getLabelPdf(orderId, token, { size = "LARGE" } = {}) {
     return buf;
 }
 
-export { getLabelPdf };
+export { getLabelPdf, cleanupOldLabels };

@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import { createProductsPdf, uploadToDrive } from './functions/createPdf.js'
 import { parseOrderIds, buildProductsFromOrders, getShopTokenMap, getOrderShopMap } from './functions/sheetData.js'
-import { getLabelPdf } from './functions/uzumLabels.js'
+import { getLabelPdf, cleanupOldLabels } from './functions/uzumLabels.js'
 import { withRetry } from './functions/retry.js'
 import { drive, sheets } from "./google.js";
 import { randomUUID, createHash } from "crypto";
@@ -161,6 +161,8 @@ function cleanupOldFiles() {
 }
 cleanupOldFiles();
 setInterval(cleanupOldFiles, 6 * 60 * 60 * 1000);
+cleanupOldLabels();                                   // label cache: 3 kun
+setInterval(cleanupOldLabels, 6 * 60 * 60 * 1000);
 
 // Drive'dagi fileId'larni yuklab olib bitta PDF'ga merge qiladi
 async function mergeDriveFiles(fileIds) {
